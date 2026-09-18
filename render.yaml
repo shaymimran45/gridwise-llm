@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: gridwise-llm
+    name: gridwise-llm-v1
     runtime: python
     plan: free
     region: oregon

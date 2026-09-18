@@ -332,11 +332,11 @@ The repo ships a [`render.yaml`](render.yaml) Blueprint that provisions the serv
 1. Sign in to [dashboard.render.com](https://dashboard.render.com) with the GitHub account that owns `shaymimran45/gridwise-llm`.
 2. Click **New** → **Blueprint**.
 3. Select the **`shaymimran45/gridwise-llm`** repo (Render will read `render.yaml` automatically).
-4. Click **Apply**. Render creates the `gridwise-llm` web service and begins building.
+4. Click **Apply**. Render creates the `gridwise-llm-v1` web service and begins building.
 
 ### 5.2 Inject the Gemini API key
 After the first build completes:
-1. Open the new `gridwise-llm` service in Render.
+1. Open the new `gridwise-llm-v1` service in Render.
 2. Go to **Environment** → **Add Environment Variable**.
 3. Add:
    * **Key**: `GEMINI_API_KEY`
@@ -348,14 +348,14 @@ Once the service status shows **Live**:
 
 ```bash
 # 1. Readiness check (judges can hit this directly)
-curl https://gridwise-llm.onrender.com/health
+curl https://gridwise-llm-v1.onrender.com/health
 # Expected: {"status":"ok"}
 
 # 2. Interactive dashboard
-open https://gridwise-llm.onrender.com/
+open https://gridwise-llm-v1.onrender.com/
 
 # 3. End-to-end optimization call
-curl -X POST https://gridwise-llm.onrender.com/optimize-energy \
+curl -X POST https://gridwise-llm-v1.onrender.com/optimize-energy \
   -H "Content-Type: application/json" \
   -d '{
     "scenario_id": "RENDER-CHECK",
