@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: gridwise-llm
+    runtime: python
+    plan: free
+    region: oregon
+    branch: master
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: bash start.sh
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite
+      - key: HOST
+        value: 0.0.0.0
+      - key: GEMINI_API_KEY
+        sync: false
+        description: >
+          Your Google Gemini API key. Get one at
+          https://aistudio.google.com/apikey. Required for LLM-powered directive
+          interpretation. Without it, the service falls back to the deterministic
+          offline parser (still functional, no LLM calls).

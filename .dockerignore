@@ -25,3 +25,7 @@ dashboard_*.png
 .coverage
 htmlcov/
 *.egg-info/
+# Render-specific files (not needed in Docker image)
+render.yaml
+runtime.txt
+start.sh

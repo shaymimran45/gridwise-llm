@@ -324,7 +324,80 @@ This automatically exercises all 10 public test cases, validates directives, phy
 
 ---
 
-## 5. Docker Fallback Execution
+## 5. Deploy to Render (One-Click Blueprint)
+
+The repo ships a [`render.yaml`](render.yaml) Blueprint that provisions the service in a single click.
+
+### 5.1 One-time setup
+1. Sign in to [dashboard.render.com](https://dashboard.render.com) with the GitHub account that owns `shaymimran45/gridwise-llm`.
+2. Click **New** → **Blueprint**.
+3. Select the **`shaymimran45/gridwise-llm`** repo (Render will read `render.yaml` automatically).
+4. Click **Apply**. Render creates the `gridwise-llm` web service and begins building.
+
+### 5.2 Inject the Gemini API key
+After the first build completes:
+1. Open the new `gridwise-llm` service in Render.
+2. Go to **Environment** → **Add Environment Variable**.
+3. Add:
+   * **Key**: `GEMINI_API_KEY`
+   * **Value**: paste your key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+4. Click **Save Changes** → Render auto-redeploys in ~30 seconds.
+
+### 5.3 Verify the deployment
+Once the service status shows **Live**:
+
+```bash
+# 1. Readiness check (judges can hit this directly)
+curl https://gridwise-llm.onrender.com/health
+# Expected: {"status":"ok"}
+
+# 2. Interactive dashboard
+open https://gridwise-llm.onrender.com/
+
+# 3. End-to-end optimization call
+curl -X POST https://gridwise-llm.onrender.com/optimize-energy \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scenario_id": "RENDER-CHECK",
+    "operator_notes": ["Solar output drops by 50% from 1 PM to 3 PM"],
+    "hours": [
+      {"hour": h, "demand_kwh": 180, "solar_kwh": 80 if 6 <= h <= 18 else 0,
+       "tariff_bdt_per_kwh": 7 + (h % 4)}
+      for h in range(24)
+    ],
+    "battery": {
+      "capacity_kwh": 500, "initial_energy_kwh": 200,
+      "minimum_energy_kwh": 50,
+      "max_charge_kwh_per_hour": 100,
+      "max_discharge_kwh_per_hour": 100
+    }
+  }'
+```
+
+### 5.4 Free-tier caveats
+
+| Concern | Behavior on Free Plan |
+| :--- | :--- |
+| **Cold start** | Service spins down after **15 minutes** of inactivity. First request after spin-down takes ~30-60 s. |
+| **Mitigation** | Hit `/health` from an external uptime monitor (e.g. [UptimeRobot](https://uptimerobot.com), free) every 10 minutes to keep it warm during judging windows. |
+| **RAM** | 512 MB. Single uvicorn worker (set in `start.sh`) — multi-worker would OOM. The async event loop + `asyncio.to_thread` already parallelizes requests within one worker. |
+| **Bandwidth** | 100 GB/month — generous for an API + dashboard. |
+| **Always-on alternative** | Upgrade to **Starter ($7/mo)** for instant cold-starts and no spin-down. |
+
+### 5.5 What `render.yaml` configures
+
+| Setting | Value | Why |
+| :--- | :--- | :--- |
+| `runtime` | `python` | Native Python build (faster than Docker on free plan). |
+| `plan` | `free` | $0/month; sufficient for hackathon judging. |
+| `region` | `oregon` | Lowest latency from Render's US edge. |
+| `healthCheckPath` | `/health` | Render pings this every 30 s to confirm liveness. |
+| `autoDeploy` | `true` | Every push to `master` triggers a redeploy. |
+| `GEMINI_API_KEY` | `sync: false` | Stored as a Render secret (encrypted at rest), **never** in git. |
+
+---
+
+## 6. Docker Fallback Execution
 
 The repository includes a production-grade multi-stage Dockerfile that runs as a non-root user and exposes port 8000.
 
