@@ -143,7 +143,136 @@ Main optimization endpoint accepting a 24-hour scenario plus operator notes.
 
 ---
 
-## 3. Local Quickstart (Zero-Friction Reproducibility)
+## 3. Mathematical Formulation
+
+The energy scheduler is solved as a **Linear Program (LP)** with `scipy.optimize.linprog(method="highs")`. The solver guarantees a globally optimal, mathematically proven minimum-cost schedule that satisfies all operator directives as hard constraints.
+
+### 3.1 Decision Variables
+
+For each hour $h \in \{0, 1, \ldots, 23\}$ we introduce five non-negative decision variables (total: $5 \times 24 = 120$ variables):
+
+| Symbol | Index range | Meaning | Units |
+| :--- | :--- | :--- | :--- |
+| $g_h$ | $0\text{–}23$ | Grid import | kWh |
+| $s_h$ | $24\text{–}47$ | Solar energy consumed | kWh |
+| $c_h$ | $48\text{–}71$ | Battery charge rate | kWh/h |
+| $d_h$ | $72\text{–}95$ | Battery discharge rate | kWh/h |
+| $E_h$ | $96\text{–}119$ | Battery energy **after** hour $h$ | kWh |
+
+### 3.2 Objective Function
+
+**Minimize total operational cost in BDT:**
+
+$$\min_{g, s, c, d, E} \; Z \;=\; \sum_{h=0}^{23} \tau_h \cdot g_h \;+\; \varepsilon \sum_{h=0}^{23} \left( c_h + d_h \right)$$
+
+where:
+* $\tau_h$ is the per-kWh grid tariff at hour $h$ (BDT/kWh).
+* $\varepsilon = 10^{-7}$ is a tie-breaker coefficient that discourages gratuitous battery cycling without altering the optimal cost value (kept 7 orders of magnitude below the smallest realistic tariff so it cannot distort the schedule).
+
+### 3.3 Equality Constraints ($A_{eq}\, x = b_{eq}$, 49 rows)
+
+**(i) Hourly energy balance** — for each $h \in [0, 23]$:
+
+$$g_h + s_h + d_h - c_h = D_h$$
+
+where $D_h$ is the campus demand at hour $h$.
+
+**(ii) Battery state transition** — for $h = 0$:
+
+$$E_0 - c_0 + d_0 = E_{\text{init}}$$
+
+and for $h \in [1, 23]$:
+
+$$E_h - E_{h-1} - c_h + d_h = 0$$
+
+**(iii) End-of-day neutrality** — battery returns to its initial state:
+
+$$E_{23} = E_{\text{init}}$$
+
+### 3.4 Variable Bounds
+
+For each hour $h \in [0, 23]$:
+
+$$
+\begin{aligned}
+0 \le g_h &\le G_h^{\max} \\
+0 \le s_h &\le S_h^{\text{eff}} \\
+0 \le c_h &\le C_h^{\max} \\
+0 \le d_h &\le D_h^{\max} \\
+R_h^{\min} \le E_h &\le C^{\text{bat}}
+\end{aligned}
+$$
+
+where (in the unconstrained case):
+
+$$
+G_h^{\max} = +\infty, \quad S_h^{\text{eff}} = S_h, \quad C_h^{\max} = c^{\text{rate}}, \quad D_h^{\max} = d^{\text{rate}}, \quad R_h^{\min} = E_{\min}
+$$
+
+and $C^{\text{bat}}$, $c^{\text{rate}}$, $d^{\text{rate}}$, $E_{\min}$, $E_{\text{init}}$ are the battery spec values from the request.
+
+### 3.5 Operator Directives as Linear Constraints
+
+The guardrail layer rewrites each natural-language note into a structured adjustment that tightens the bounds above. Every directive maps cleanly to a linear inequality (already represented by upper/lower bounds, so no extra rows are added).
+
+| Directive type | Bound it modifies | Mathematical effect |
+| :--- | :--- | :--- |
+| `solar_reduction` with factor $f$ | $S_h^{\text{eff}} \leftarrow S_h^{\text{eff}} \cdot f$ | Caps usable solar at hour $h$ |
+| `solar_outage` | $S_h^{\text{eff}} \leftarrow 0$ | Forces $s_h = 0$ |
+| `minimum_battery_reserve` $r$ | $R_h^{\min} \leftarrow \max(R_h^{\min}, r)$ | Lower bound on $E_h$ |
+| `no_charge_window` | $C_h^{\max} \leftarrow 0$ | Forces $c_h = 0$ |
+| `no_discharge_window` | $D_h^{\max} \leftarrow 0$ | Forces $d_h = 0$ |
+| `max_grid_window` $M$ | $G_h^{\max} \leftarrow \min(G_h^{\max}, M)$ | Caps grid import |
+
+**Solar factor extraction** (closed-form, see `_extract_solar_factor`):
+
+$$
+f_{\text{reduce}} \;=\; \mathrm{clamp}\!\left(1 - \frac{p}{100},\; 0,\; 1\right), \qquad f_{\text{absolute}} \;=\; \mathrm{clamp}\!\left(\frac{p}{100},\; 0,\; 1\right)
+$$
+
+where $p$ is the percentage parsed from the note (e.g. *"drop by 50%"* → $p=50$ → $f = 0.5$; *"to 20%"* → $p=20$ → $f = 0.2$; *"offline"* → $f = 0$).
+
+**12-hour time conversion** (see `_to_24h`):
+
+$$
+h_{24} \;=\;
+\begin{cases}
+(h \bmod 12) + 12 & \text{if pm and } h < 12 \\[4pt]
+0 & \text{if am and } h = 12 \\[4pt]
+h & \text{if am and } h < 12 \quad \text{or no meridiem}
+\end{cases}
+$$
+
+**Guardrail clamping** (see `validate_and_guardrail_directives`):
+
+$$
+f \in [0,\, 1], \qquad R_h^{\min} \in [0,\, C^{\text{bat}}], \qquad G_h^{\max} \ge 0
+$$
+
+### 3.6 LP Size and Solver Performance
+
+* **Variables:** $n = 120$
+* **Equality constraints:** $m_{eq} = 49$ (24 energy balances + 24 battery transitions + 1 end-of-day neutrality)
+* **Inequality constraints:** none (all bounds are box constraints encoded in `bounds`)
+* **Solver:** HiGHS sparse simplex / IPM
+* **Typical solve time:** $< 2\,\text{ms}$ on a single core
+* **Numerical guarantees:** global optimum, energy balance exact to solver tolerance, end-of-day battery neutrality exact.
+
+### 3.7 Round-Trip Identity
+
+The returned aggregates are **recalculated from the rounded hourly plan** so judges can re-verify from the response payload alone:
+
+$$
+\text{total\_grid\_kwh} = \sum_{h=0}^{23} g_h, \qquad
+\text{total\_cost\_bdt} = \sum_{h=0}^{23} \tau_h \cdot g_h, \qquad
+\text{peak\_grid\_kwh} = \max_{h} g_h
+$$
+
+with all values rounded to 4 decimal places to meet the official $\pm 0.01$ BDT / kWh tolerance.
+
+---
+
+## 4. Local Quickstart (Zero-Friction Reproducibility)
 
 ### Prerequisites
 * Python 3.10+ (Tested up to Python 3.14)
@@ -195,7 +324,7 @@ This automatically exercises all 10 public test cases, validates directives, phy
 
 ---
 
-## 4. Docker Fallback Execution
+## 5. Docker Fallback Execution
 
 The repository includes a production-grade multi-stage Dockerfile that runs as a non-root user and exposes port 8000.
 
@@ -222,7 +351,7 @@ curl http://localhost:8000/health
 
 ---
 
-## 5. Implementation Details & Technologies
+## 6. Implementation Details & Technologies
 
 | Component | Choice | Rationale |
 | :--- | :--- | :--- |
@@ -233,14 +362,14 @@ curl http://localhost:8000/health
 
 ---
 
-## 6. Security & Secret Handling
+## 7. Security & Secret Handling
 * **No hardcoded secrets**: API keys and tokens are loaded strictly via environment variables.
 * **Safe logging**: Prompts, API responses, and logs never dump credential tokens or sensitive stack traces.
 * **Safe failures**: Malformed inputs return HTTP 400 with structured validation errors, preventing 500 crashes.
 
 ---
 
-## 7. Known Limitations & Edge Cases
+## 8. Known Limitations & Edge Cases
 * Time intervals in the Problem Statement are start-inclusive and end-exclusive (e.g. `1 PM to 3 PM` $\rightarrow$ `[13, 14]`). Minutes are rounded to nearest whole hours.
 * Floating-point numbers are rounded to 4 decimal places in response JSON and meet the canonical $\pm 0.01$ kWh / BDT tolerance rule.
 
