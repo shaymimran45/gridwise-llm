@@ -1,0 +1,29 @@
+# Files excluded from Vercel deployment
+# (Vercel uses .vercelignore, similar to .gitignore)
+
+# Render-specific files
+render.yaml
+runtime.txt
+start.sh
+.render-cli/
+
+# Test & dev
+test_samples.py
+smoke_test.py
+explore_samples.py
+debug_gemini.py
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+.playwright-mcp/
+*.log
+
+# Secrets (must never be in deployed bundle)
+.env
+.env*.local
+
+# Original challenge material
+Participant_Docs/
+*.zip
