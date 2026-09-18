@@ -1,0 +1,27 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+.env.local
+.git
+.gitignore
+.dockerignore
+Participant_Docs/
+BUP_CSE_FEST_2026_Participant_Docs (1).zip
+test_*.py
+explore_samples.py
+debug_gemini.py
+smoke_test.py
+.clinerules
+.playwright-mcp/
+dashboard_*.png
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/

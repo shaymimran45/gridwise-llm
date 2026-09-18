@@ -1,0 +1,65 @@
+# ============================================
+# Environment & Secrets
+# ============================================
+.env
+.env*.local
+*.pem
+*.key
+
+# ============================================
+# Python & Build Artifacts
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ============================================
+# Testing & Coverage
+# ============================================
+.pytest_cache/
+.coverage
+htmlcov/
+*.pytest_cache
+
+# ============================================
+# Hackathon Challenge Material (local only)
+# ============================================
+*.zip
+Participant_Docs/
+smoke_test.py
+
+# ============================================
+# IDE & OS Files
+# ============================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ============================================
+# Tool-Local Files
+# ============================================
+.puku-cli/
+.playwright-mcp/
