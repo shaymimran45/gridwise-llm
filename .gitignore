@@ -63,3 +63,8 @@ Thumbs.db
 # ============================================
 .puku-cli/
 .playwright-mcp/
+.render-cli/
+node_modules/
+
+.vercel
+.env*

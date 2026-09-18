@@ -20,10 +20,5 @@
   "env": {
     "GEMINI_MODEL": "gemini-2.5-flash-lite",
     "HOST": "0.0.0.0"
-  },
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60
-    }
   }
 }
