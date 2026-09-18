@@ -175,6 +175,14 @@ class OptimizeEnergyRequest(BaseModel):
                 raise ValueError(f"operator_notes[{i}] exceeds 2000-character limit")
         return self
 
+    @model_validator(mode="after")
+    def _unique_hours(self):
+        """Bug fix: reject duplicate hours with 400 per §07.1 (was silently accepted)."""
+        hours_set = set(h.hour for h in self.hours)
+        if len(hours_set) != 24 or set(range(24)) != hours_set:
+            raise ValueError("hours must contain exactly 24 unique hours from 0 to 23.")
+        return self
+
 
 # Response Schemas
 class HealthResponse(BaseModel):
@@ -241,16 +249,9 @@ async def optimize_energy(payload: OptimizeEnergyRequest):
     request_id = str(uuid.uuid4())[:8]
     logger.info(f"[{request_id}] Processing optimization request for scenario: {payload.scenario_id}")
 
-    # 1. Validate hours length & uniqueness
-    hours_dict = [h.model_dump() for h in payload.hours]
-    unique_hours = set(h["hour"] for h in hours_dict)
-    if len(unique_hours) != 24 or set(range(24)) != unique_hours:
-        raise HTTPException(
-            status_code=400,
-            detail="hours must contain exactly 24 unique hours from 0 to 23.",
-        )
-
-    battery_dict = payload.battery.model_dump()
+    # 1. Validate hours length & uniqueness (now enforced at Pydantic layer via _unique_hours)
+    hours_dict = [h.dict() for h in payload.hours]
+    battery_dict = payload.battery.dict()
     operator_notes = payload.operator_notes
 
     # 2. LLM interpretation (async, non-blocking; safe fallback on failure)

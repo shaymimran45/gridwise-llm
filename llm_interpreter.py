@@ -64,7 +64,7 @@ _RE_24H_BARE_NOSPACE     = re.compile(r'\b(?:from|between)\s*(\d{1,2})\s*(?:to|u
 # Solar factor patterns
 _RE_PCT_REDUCE_VERB_FIRST = re.compile(r'(?:reduction|drop|decrease|cut|reduce|cutting)\s*(?:by|of|to)?\s*(\d+)\s*%', re.I)
 _RE_PCT_AFTER_VERB        = re.compile(r'(\d+)\s*%\s*(?:reduction|drop|decrease|cut)', re.I)
-_RE_TO_PCT                = re.compile(r'(?:to|roughly|about|around|approximately|down to)\s*(\d+)\s*%', re.I)
+_RE_TO_PCT                = re.compile(r'(?:to|roughly|about|around|approximately|down to|only\s+be|only|~|just)\s*(\d+)\s*%', re.I)
 _RE_FROM_PCT              = re.compile(r'from\s+(\d+)\s*%', re.I)
 
 # Battery / reserve keywords
